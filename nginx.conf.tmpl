@@ -38,7 +38,7 @@ http {
     server {
       listen {{env "NGINX_PROXY_PORT"}};
 
-      return 502;
+      return 503;
     }
   {{- end }}
 {{- end }}

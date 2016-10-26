@@ -6,6 +6,6 @@ http {
     server {
       listen 80;
 
-      return 502;
+      return 503;
     }
 }
