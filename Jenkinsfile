@@ -15,7 +15,7 @@ node('docker') {
 
         dockerRepo = "test-${env.BUILD_TAG}"
 
-        sh "docker build --pull --no-cache --rm --build-arg git_commit=${git_commit} --build-arg descriptive_version=${descriptive_version}-t ${dockerRepo} ."
+        sh "docker build --pull --no-cache --rm --build-arg git_commit=${git_commit} --build-arg descriptive_version=${descriptive_version} -t ${dockerRepo} ."
 
 
         dockerPusher = "push-${env.BUILD_TAG}"
