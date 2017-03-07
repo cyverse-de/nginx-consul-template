@@ -1,8 +1,5 @@
 FROM nginx:alpine
 MAINTAINER Ian McEwen <mian@cyverse.org>
-ARG git_commit
-
-LABEL org.cyverse.git-ref="$git_commit"
 
 ENV CONSUL_TEMPLATE_VERSION=0.16.0
 ENV CONSUL_TEMPLATE_SHA256SUM=064b0b492bb7ca3663811d297436a4bbf3226de706d2b76adade7021cd22e156
@@ -32,3 +29,9 @@ COPY nginx.conf.tmpl /templates/nginx.conf.tmpl
 COPY nginx.conf.dummy /etc/nginx/nginx.conf
 
 ENTRYPOINT ["prehook", "/usr/local/bin/run-consul-template.sh -once", "--", "codep", "/usr/local/bin/run-consul-template.sh", "/usr/local/bin/run-nginx.sh"]
+
+ARG git_commit=unknown
+ARG descriptive_version=unknown
+
+LABEL org.cyverse.git-ref="$git_commit"
+LABEL org.cyverse.descriptive-version="$descriptive_version"
