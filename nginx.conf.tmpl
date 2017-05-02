@@ -13,7 +13,7 @@ events {
 
 
 http {
-    log_format json '{"nginx": {'
+    log_format json escape=json '{"nginx": {'
                         '"msec":'                   '"$msec",'
                         '"time_local":'             '"$time_local",'
                         '"time_iso8601":'           '"$time_iso8601",'
