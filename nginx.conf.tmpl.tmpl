@@ -1,0 +1,313 @@
+{{- with $base := (printf "configs/%s" (env "DE_ENV")) -}}
+{{/* The metatemplate stuff looks really, really ugly. I'll leave comments like this to show what it's supposed to turn into. We could, theoretically, switch the delimiters, but I'm not actually sure if that's more or less confusing. */}}
+{{/*
+# We're an nginx for the de
+# Here's what consul thinks of us (assuming we're registered as de-nginx):
+{{- range service "de-nginx" "any" }}
+# {{.ID}} {{.Address}}:{{.Port}} {{.Tags}}
+{{- range .Checks }}
+# * ({{.CheckID}} {{.Status}}: {{.Output | replaceAll "\n" "\n#"}})
+{{- end }}
+{{- end }}
+# Below here, we've got the kifshare-nginx checks. Having them here is relevant
+# because they're used in this file, but more importantly it means that if
+# their IP addresses or health checks change, it'll result in a configuration
+# reload, which will clear nginx's cache of their IP addresses.
+{{- range service "kifshare-nginx" "any" }}
+# {{.ID}} {{.Address}}:{{.Port}} {{.Tags}}
+{{- range .Checks }}
+# * ({{.CheckID}} {{.Status}}: {{.Output | replaceAll "\n" "\n#"}})
+{{- end }}
+{{- end }}
+*/}}
+# We're an nginx for the de
+# Here's what consul thinks of us (assuming we're registered as de-nginx):
+{{"{{"}}- range service "de-nginx" "any" {{"}}"}}
+# {{"{{"}}.ID{{"}}"}} {{"{{"}}.Address{{"}}"}}:{{"{{"}}.Port{{"}}"}} {{"{{"}}.Tags{{"}}"}}
+{{"{{"}}- range .Checks {{"}}"}}
+# * ({{"{{"}}.CheckID{{"}}"}} {{"{{"}}.Status{{"}}"}}: {{"{{"}}.Output | replaceAll "\n" "\n#"{{"}}"}})
+{{"{{"}}- end {{"}}"}}
+{{"{{"}}- end {{"}}"}}
+# Below here, we've got the kifshare-nginx checks. Having them here is relevant
+# because they're used in this file, but more importantly it means that if
+# their IP addresses or health checks change, it'll result in a configuration
+# reload, which will clear nginx's cache of their IP addresses.
+{{"{{"}}- range service "kifshare-nginx" "any" {{"}}"}}
+# {{"{{"}}.ID{{"}}"}} {{"{{"}}.Address{{"}}"}}:{{"{{"}}.Port{{"}}"}} {{"{{"}}.Tags{{"}}"}}
+{{"{{"}}- range .Checks {{"}}"}}
+# * ({{"{{"}}.CheckID{{"}}"}} {{"{{"}}.Status{{"}}"}}: {{"{{"}}.Output | replaceAll "\n" "\n#"{{"}}"}})
+{{"{{"}}- end {{"}}"}}
+{{"{{"}}- end {{"}}"}}
+
+events {
+    worker_connections 4096;
+}
+
+http {
+    client_max_body_size 2G;
+
+    log_format json escape=json '{"nginx": {'
+                        '"msec":'                   '"$msec",'
+                        '"time_local":'             '"$time_local",'
+                        '"time_iso8601":'           '"$time_iso8601",'
+                        '"is_args":'                '"$is_args",'
+                        '"https":'                  '"$https",'
+                        '"nginx_version":'          '"$nginx_version",'
+                        '"pid":'                    '"$pid",'
+                        '"host":'                   '"$host",'
+                        '"hostname":'               '"$hostname",'
+                        '"remote_address":'         '"$remote_addr",'
+                        '"remote_port":'            '"$remote_port",'
+                        '"remote_user":'            '"$remote_user",'
+                        '"server_address":'         '"$server_addr",'
+                        '"server_name":'            '"$server_name",'
+                        '"server_port":'            '"$server_port",'
+                        '"server_protocol":'        '"$server_protocol",'
+                        '"proxy_protocol_address":' '"$proxy_protocol_addr",'
+                        '"proxy_protocol_port":'    '"$proxy_protocol_port",'
+                        '"request":'                '"$request",'
+                        '"document_root":'          '"$document_root",'
+                        '"query_string":'           '"$query_string",'
+                        '"request_id":'             '"$request_id",'
+                        '"request_uri":'            '"$request_uri",'
+                        '"request_completion":'     '"$request_completion",'
+                        '"request_length":'         '"$request_length",'
+                        '"request_method":'         '"$request_method",'
+                        '"request_time":'           '"$request_time",'
+                        '"scheme":'                 '"$external_scheme",'
+                        '"status":'                 '"$status",'
+                        '"uri":'                    '"$uri",'
+                        '"body_bytes_sent":'        '"$body_bytes_sent",'
+                        '"http_referer":'           '"$http_referer",'
+                        '"http_user_agent":'        '"$http_user_agent",'
+                        '"upstream_address":'       '"$upstream_addr",'
+                        '"upstream_response_time":' '"$upstream_response_time"'
+                    '}}';
+
+
+    access_log /var/log/nginx/access.log json;
+    error_log /var/log/nginx/error.log;
+
+    upstream de {
+        ip_hash;
+
+{{/*
+{{- with $service_query := (printf "%s.de" (env "DE_ENV")) }}
+  {{- if service $service_query }}
+    {{- range service $service_query }}
+        server {{.Address}}:{{.Port}} max_fails=3 fail_timeout=60 weight=1 {{- if not (.Tags.Contains (key_or_default (printf "%s/de/color" (env "DE_ENV")) "green"))}} down{{end}}; # {{.ID}} {{.Tags}}
+    {{- end }}
+  {{- else }}
+        server 127.0.0.1:65535; # dummy server so config is valid
+  {{- end }}
+{{- end }}
+
+*/}}
+{{"{{"}}- with $service_query := (printf "%s.de" (env "DE_ENV")) {{"}}"}}
+  {{"{{"}}- if service $service_query {{"}}"}}
+    {{"{{"}}- range service $service_query {{"}}"}}
+        server {{"{{"}}.Address{{"}}"}}:{{"{{"}}.Port{{"}}"}} max_fails=3 fail_timeout=60 weight=1 {{"{{"}}- if not (.Tags.Contains (key_or_default (printf "%s/de/color" (env "DE_ENV")) "green")){{"}}"}} down{{"{{"}}end{{"}}"}}; # {{"{{"}}.ID{{"}}"}} {{"{{"}}.Tags{{"}}"}}
+    {{"{{"}}- end {{"}}"}}
+  {{"{{"}}- else {{"}}"}}
+        server 127.0.0.1:65535; # dummy server so config is valid
+  {{"{{"}}- end {{"}}"}}
+{{"{{"}}- end {{"}}"}}
+    }
+
+    upstream kifshare {
+        server {{ key (printf "%s/kifshare/host" $base) }}:{{ key (printf "%s/kifshare/port" $base) }};
+    }
+
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    map $server_port $external_scheme {
+        8443    https;
+        8444    https;
+        default $scheme;
+    }
+
+    server {
+        listen 443 ssl http2;
+{{ with $v := (key (printf "%s/nginx/proxy" $base)) }}
+        listen 8443 http2 proxy_protocol;
+        listen 8444 ssl proxy_protocol;
+{{ end }}
+
+        server_name {{ key (printf "%s/nginx/server-name" $base) }};
+
+        ssl_certificate {{ key (printf "%s/nginx/ssl/cert" $base) }};
+        ssl_certificate_key {{ key (printf "%s/nginx/ssl/key" $base) }};
+
+{{ with $v := (key (printf "%s/nginx/proxy" $base)) }}
+        real_ip_header proxy_protocol;
+        real_ip_recursive on;
+
+        set_real_ip_from {{ $v }};
+{{ end }}
+
+        location /anon-files/ {
+            gzip on;
+            gzip_http_version 1.1;
+            gzip_vary on;
+            gzip_comp_level 6;
+            gzip_proxied any;
+            gzip_types text/plain text/html text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml application/rss+xml application/atom+xml application/rdf+xml;
+
+            # make sure gzip doesn't lose large gzipped js/css files
+            gzip_buffers 16 8k;
+
+            gzip_disable "msie6";
+
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Credentials' 'true';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range';
+            add_header 'Access-Control-Expose-Headers' 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range';
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $external_scheme;
+
+            # No slash here -- we want the path part of the URI to be passed directly, including the `/anon-files/`
+            proxy_pass http://kifshare;
+        }
+
+        location /dl/ {
+            gzip on;
+            gzip_http_version 1.1;
+            gzip_vary on;
+            gzip_comp_level 6;
+            gzip_proxied any;
+            gzip_types text/plain text/html text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml application/rss+xml application/atom+xml application/rdf+xml;
+
+            # make sure gzip doesn't lose large gzipped js/css files
+            gzip_buffers 16 8k;
+
+            gzip_disable "msie6";
+
+            add_header 'Access-Control-Allow-Origin' '*';
+            add_header 'Access-Control-Allow-Credentials' 'true';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range';
+            add_header 'Access-Control-Expose-Headers' 'DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Content-Range,Range';
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $external_scheme;
+
+            # Here, a slash -- we want the `/dl/` part removed from the path part before being passed down
+            proxy_pass http://kifshare/;
+        }
+
+        location /de/agave-cb {
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            proxy_pass {{ key (printf "%s/apps/base" $base) }}/callbacks/agave-job;
+        }
+
+        location / {
+{{/*
+{{- with $service_query := (printf "%s.de" (env "DE_ENV")) }}
+  {{- if service $service_query }}
+*/}}
+{{"{{"}}- with $service_query := (printf "%s.de" (env "DE_ENV")) {{"}}"}}
+  {{"{{"}}- if service $service_query {{"}}"}}
+            gzip on;
+            gzip_http_version 1.1;
+            gzip_vary on;
+            gzip_comp_level 6;
+            gzip_proxied any;
+            gzip_types text/plain text/html text/css application/json application/javascript application/x-javascript text/javascript text/xml application/xml application/rss+xml application/atom+xml application/rdf+xml;
+
+            # make sure gzip doesn't lose large gzipped js/css files
+            gzip_buffers 16 8k;
+
+            gzip_disable "msie6";
+
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $external_scheme;
+
+            proxy_read_timeout 3600s;
+
+            proxy_pass http://de;
+{{/*
+  {{- else }}
+            return 503;
+  {{- end }}
+{{- end }}
+*/}}
+  {{"{{"}}- else {{"}}"}}
+            return 503;
+  {{"{{"}}- end {{"}}"}}
+{{"{{"}}- end {{"}}"}}
+        }
+
+        location /de/websocket {
+{{/* Same wrappers as above in / */}}
+{{"{{"}}- with $service_query := (printf "%s.de" (env "DE_ENV")) {{"}}"}}
+  {{"{{"}}- if service $service_query {{"}}"}}
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $external_scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+
+            proxy_read_timeout 3600s;
+
+            proxy_pass http://de;
+  {{"{{"}}- else {{"}}"}}
+            return 503;
+  {{"{{"}}- end {{"}}"}}
+{{"{{"}}- end {{"}}"}}
+        }
+    }
+
+{{ with $v := (key (printf "%s/nginx/insecure-redirects" $base)) }}
+{{ range $v | parseJSON }}
+    server {
+        listen 80;
+        server_name {{ .server_name }};
+        return 301 {{ .return }};
+    }
+{{ end }}
+{{ end }}
+
+{{ with $v := (key (printf "%s/nginx/redirects" $base)) }}
+{{ range $v | parseJSON }}
+    server {
+        listen 443 ssl http2;
+{{ with $v := (key (printf "%s/nginx/proxy" $base)) }}
+        listen 8443 http2 proxy_protocol;
+        listen 8444 ssl proxy_protocol;
+{{ end }}
+
+        server_name {{ .server_name }};
+
+        ssl_certificate {{ .ssl_certificate }};
+        ssl_certificate_key {{ .ssl_certificate_key }};
+
+{{ with $v := (key (printf "%s/nginx/proxy" $base)) }}
+        real_ip_header proxy_protocol;
+        real_ip_recursive on;
+
+        set_real_ip_from {{ $v }};
+{{ end }}
+
+        return 301 {{ .return }};
+    }
+{{ end }}
+{{ end }}
+}
+{{- end -}}

@@ -1,0 +1,17 @@
+FROM discoenv/nginx-consul-template:master
+
+ENV NGINX_META_TEMPLATE=/templates/nginx.conf.tmpl.tmpl
+
+COPY run-consul-template-metatemplate.sh /usr/local/bin/run-consul-template-metatemplate.sh
+COPY nginx.conf.tmpl.tmpl /templates/nginx.conf.tmpl.tmpl
+
+ENTRYPOINT ["prehook", "/usr/local/bin/run-consul-template-metatemplate.sh", "/usr/local/bin/run-consul-template.sh -once", "--", "codep", "/usr/local/bin/run-consul-template.sh", "/usr/local/bin/run-nginx.sh"]
+
+ARG git_commit=unknown
+ARG descriptive_version=unknown
+
+LABEL org.cyverse.git-ref="$git_commit"
+LABEL org.cyverse.descriptive-version="$descriptive_version"
+LABEL org.label-schema.vcs-ref="$git_commit"
+LABEL org.label-schema.vcs-url="https://github.com/cyverse-de/nginx-consul-template"
+LABEL org.label-schema.version="$descriptive_version"
