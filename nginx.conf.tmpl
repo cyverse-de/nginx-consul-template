@@ -54,6 +54,13 @@ http {
     access_log /var/log/nginx/access.log json;
 
     client_max_body_size 0;
+    proxy_connect_timeout 600s;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+    send_timeout 600s;
+
+    proxy_http_version 1.1;
+
     underscores_in_headers on;
 
 {{- with $service_query := (printf "%s.%s" (env "DE_ENV") (env "NGINX_PROXY_SERVICE_NAME")) }}
@@ -62,6 +69,8 @@ http {
     {{- range service $service_query }}
       server {{.Address}}:{{.Port}} max_fails=3 fail_timeout=60 weight=1 {{- if not (.Tags.Contains (key_or_default (printf "%s/%s/color" (env "DE_ENV") (env "NGINX_PROXY_SERVICE_NAME")) "green"))}} backup{{end}}; # {{.ID}} {{.Tags}}
     {{- end }}
+
+      keepalive 16;
     }
 
     server {
@@ -73,6 +82,7 @@ http {
         proxy_set_header X-Forwarded-Port {{env "NGINX_PROXY_PORT"}};
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Connection "";
       }
     }
   {{- else }}
