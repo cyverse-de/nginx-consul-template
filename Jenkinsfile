@@ -17,6 +17,11 @@ node('docker') {
 
         sh "docker build --pull --no-cache --rm --build-arg git_commit=${git_commit} --build-arg descriptive_version=${descriptive_version} -t ${dockerRepo} ."
 
+        image_sha = sh(returnStdout: true, script: "docker inspect -f '{{ .Config.Image }}' ${dockerRepo}").trim()
+        echo image_sha
+
+        writeFile(file: "${dockerRepo}.docker-image-sha", text: "${image_sha}")
+        fingerprint "${dockerRepo}.docker-image-sha"
 
         dockerPusher = "push-${env.BUILD_TAG}"
         dockerPushRepo = "${service.dockerUser}/${service.repo}:${env.BRANCH_NAME}"
@@ -34,6 +39,12 @@ node('docker') {
                 milestone 103
                 stage "Build UI nginx"
                 sh "docker build --no-cache --rm --build-arg git_commit=${git_commit} --build-arg descriptive_version=${descriptive_version} -t ${dockerPushRepoUi} -f Dockerfile.ui ."
+
+                ui_image_sha = sh(returnStdout: true, script: "docker inspect -f '{{ .Config.Image }}' ${dockerPushRepoUi}").trim()
+                echo ui_image_sha
+
+                writeFile(file: "${dockerPushRepoUi}.docker-image-sha", text: "${ui_image_sha}")
+                fingerprint "${dockerPushRepoUi}.docker-image-sha"
 
                 stage "Docker Push"
                 withCredentials([[$class: 'UsernamePasswordMultiBinding', credentialsId: 'jenkins-docker-credentials', passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME']]) {
