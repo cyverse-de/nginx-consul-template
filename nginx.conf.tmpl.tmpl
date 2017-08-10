@@ -95,7 +95,6 @@ http {
     error_log /var/log/nginx/error.log;
 
     upstream de {
-        ip_hash;
 
 {{/*
 {{- with $service_query := (printf "%s.de" (env "DE_ENV")) }}
